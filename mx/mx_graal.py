@@ -1394,58 +1394,16 @@ def ctw(args):
     vm(vmargs)
 
 def _basic_gate_body(args, tasks):
-    with Task('BuildHotSpotGraal: fastdebug,product', tasks):
+    with Task('BuildHotSpotGraal: product', tasks):
         buildvms(['--vms', 'graal,server', '--builds', 'fastdebug,product'])
 
-    with VM('graal', 'fastdebug'):
-        with Task('BootstrapWithSystemAssertions:fastdebug', tasks):
+    with VM('graal', 'product'):
+        with Task('BootstrapWithSystemAssertions:product', tasks):
             vm(['-esa', '-XX:-TieredCompilation', '-version'])
-
-    with VM('graal', 'fastdebug'):
-        with Task('BootstrapWithSystemAssertionsNoCoop:fastdebug', tasks):
-            vm(['-esa', '-XX:-TieredCompilation', '-XX:-UseCompressedOops', '-version'])
-
-    with VM('graal', 'product'):
-        with Task('BootstrapWithGCVerification:product', tasks):
-            out = mx.DuplicateSuppressingStream(['VerifyAfterGC:', 'VerifyBeforeGC:']).write
-            vm(['-XX:-TieredCompilation', '-XX:+UnlockDiagnosticVMOptions', '-XX:+VerifyBeforeGC', '-XX:+VerifyAfterGC', '-version'], out=out)
-
-    with VM('graal', 'product'):
-        with Task('BootstrapWithG1GCVerification:product', tasks):
-            out = mx.DuplicateSuppressingStream(['VerifyAfterGC:', 'VerifyBeforeGC:']).write
-            vm(['-XX:-TieredCompilation', '-XX:+UnlockDiagnosticVMOptions', '-XX:-UseSerialGC', '-XX:+UseG1GC', '-XX:+VerifyBeforeGC', '-XX:+VerifyAfterGC', '-version'], out=out)
-
-    with VM('graal', 'product'):
-        with Task('BootstrapWithRegisterPressure:product', tasks):
-            vm(['-XX:-TieredCompilation', '-G:RegisterPressure=rbx,r11,r10,r14,xmm3,xmm11,xmm14', '-esa', '-version'])
-
-    with VM('graal', 'product'):
-        with Task('BootstrapWithImmutableCode:product', tasks):
-            vm(['-XX:-TieredCompilation', '-G:+ImmutableCode', '-G:+VerifyPhases', '-esa', '-version'])
 
     with VM('server', 'product'):  # hosted mode
         with Task('UnitTests:hosted-product', tasks):
             unittest(['--enable-timing', '--verbose'])
-
-    with VM('server', 'product'):  # hosted mode
-        with Task('UnitTests-BaselineCompiler:hosted-product', tasks):
-            unittest(['--enable-timing', '--verbose', '--whitelist', 'test/whitelist_baseline.txt', '-G:+UseBaselineCompiler'])
-
-    for vmbuild in ['fastdebug', 'product']:
-        for test in sanitycheck.getDacapos(level=sanitycheck.SanityCheckLevel.Gate, gateBuildLevel=vmbuild) + sanitycheck.getScalaDacapos(level=sanitycheck.SanityCheckLevel.Gate, gateBuildLevel=vmbuild):
-            with Task(str(test) + ':' + vmbuild, tasks) as t:
-                if not test.test('graal'):
-                    t.abort(test.name + ' Failed')
-
-    # ensure -Xbatch still works
-    with VM('graal', 'product'):
-        with Task('DaCapo_pmd:BatchMode:product', tasks):
-            dacapo(['-Xbatch', 'pmd'])
-
-    # ensure -Xcomp still works
-    with VM('graal', 'product'):
-        with Task('XCompMode:product', tasks):
-            vm(['-Xcomp', '-version'])
 
     if args.jacocout is not None:
         jacocoreport([args.jacocout])
@@ -1457,26 +1415,6 @@ def _basic_gate_body(args, tasks):
         env = _igvFallbackJDK(os.environ)
         buildxml = mx._cygpathU2W(join(_graal_home, 'src', 'share', 'tools', 'IdealGraphVisualizer', 'build.xml'))
         mx.run(['ant', '-f', buildxml, '-q', 'clean', 'build'], env=env)
-
-    # Prevent Graal modifications from breaking the standard builds
-    if args.buildNonGraal:
-        with Task('BuildHotSpotVarieties', tasks):
-            buildvms(['--vms', 'client,server', '--builds', 'fastdebug,product'])
-            if mx.get_os() not in ['windows', 'cygwin']:
-                buildvms(['--vms', 'server-nograal', '--builds', 'product,optimized'])
-
-        for vmbuild in ['product', 'fastdebug']:
-            for theVm in ['client', 'server']:
-                if not isVMSupported(theVm):
-                    mx.log('The' + theVm + ' VM is not supported on this platform')
-                    continue
-                with VM(theVm, vmbuild):
-                    with Task('DaCapo_pmd:' + theVm + ':' + vmbuild, tasks):
-                        dacapo(['pmd'])
-
-                    with Task('UnitTests:' + theVm + ':' + vmbuild, tasks):
-                        unittest(['-XX:CompileCommand=exclude,*::run*', 'graal.api'])
-
 
 def gate(args, gate_body=_basic_gate_body):
     """run the tests used to validate a push
