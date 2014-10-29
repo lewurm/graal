@@ -1,0 +1,8 @@
+language: java
+install:
+    - sudo apt-get install python
+jdk:
+    - oraclejdk8
+
+script:
+    - JAVA_HOME=/usr/lib/jvm/java-8-oracle EXTRA_JAVA_HOMES=/usr/lib/jvm/java-7-oracle ./mx.sh -v gate
