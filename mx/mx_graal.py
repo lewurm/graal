@@ -1395,7 +1395,7 @@ def ctw(args):
 
 def _basic_gate_body(args, tasks):
     with Task('BuildHotSpotGraal: product', tasks):
-        buildvms(['--vms', 'graal,server', '--builds', 'fastdebug,product'])
+        buildvms(['--vms', 'graal,server', '--builds', 'product'])
 
     with VM('graal', 'product'):
         with Task('BootstrapWithSystemAssertions:product', tasks):
